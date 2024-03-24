@@ -1,12 +1,28 @@
 //ProfHacks 2024 - Matthew Garcillano; Victor Martinez
 
 #include <Servo.h>
-#include <Servo.h>
 #include <IRremote.h>
 
 Servo myservo;
 int Echo_Pin=A0;  // ultrasonic module   ECHO to A0
 int Trig_Pin=A1;  // ultrasonic module  TRIG to A1
+int RECV_PIN = 12;
+IRrecv irrecv(RECV_PIN);
+decode_results results;
+
+int mode = 0;
+int autoButtonState = 0;
+int manButtonState = 0;
+
+#define IR_Go      0x00ff629d
+#define IR_Back    0x00ffa857
+#define IR_Left    0x00ff22dd
+#define IR_Right   0x00ffc23d
+#define IR_Stop    0x00ff02fd
+
+#define IR_Auto    0x00ff42bd
+#define IR_Man     0x00ff52ad
+
 #define Lpwm_pin  5     //pin of controlling speed---- ENA of motor driver board
 #define Rpwm_pin  6    //pin of controlling speed---- ENB of motor driver board
 
@@ -81,10 +97,8 @@ if(Left_Distance > Right_Distance)//if distance a1 is greater than a2
   else//otherwise
   {
     go_forward(50);//go forward
-    IR_Control();
   }
 }
-
 
 
 void Obstacle_Avoidance_Main() 
@@ -96,6 +110,7 @@ void Obstacle_Avoidance_Main()
 
 void setup(){
   myservo.attach(A2);
+  irrecv.enableIRIn(); // Start the receiver
   Serial.begin(9600);
   D_mix = 10;
   D_mid = 20;
@@ -115,8 +130,29 @@ void setup(){
 }
 
 void loop(){
-  Obstacle_Avoidance_Main();
 
+    // Check for mode switch commands from the IR remote
+  if (irrecv.decode(&results)) {
+    unsigned long key = results.value;
+    if (key == IR_Auto) {
+      mode = 0; // Switch to automatic mode
+      Serial.println("Switching to automatic mode");
+    } else if (key == IR_Man) {
+      mode = 1; // Switch to manual mode
+      Serial.println("Switching to manual mode");
+    }
+    irrecv.resume(); // Receive the next value
+  }
+
+  // Execute corresponding mode functions based on the current mode
+  if (mode == 0) {
+    // Automatic mode
+    Obstacle_Avoidance_Main();
+  } 
+  else if (mode == 1) {
+    // Manual mode
+    IR_Control();
+  }
 }
 
 
@@ -170,13 +206,7 @@ void stopp()        //stop
      digitalWrite(pinLF,HIGH);
     }
 
-#define IR_Stop    0x00ff02fd
-
-int RECV_PIN = 12;
-IRrecv irrecv(RECV_PIN);
-decode_results results;
-
-void IR_Control(void)
+void IR_Control(void) //manual control
 {
    unsigned long Key;
    if(irrecv.decode(&results)) //judging if serial port receives data   
@@ -184,12 +214,39 @@ void IR_Control(void)
      Key = results.value;
     switch(Key)
      {
+       case IR_Go:go_forward(150);   //UP
+       break;
+       case IR_Back:go_backward(150);   //back
+       break;
+       case IR_Left:rotate_left(100);   //Left    
+       break;
+       case IR_Right:rotate_right(100); //Righ
+       break;
        case IR_Stop:stopp();   //stop
        break;
        default: 
        break;      
      } 
      irrecv.resume(); // Receive the next value
-  } 
+    } 
   
+}
+
+void IR_Mode(void)
+{
+  unsigned long Key;
+   if(irrecv.decode(&results)) //judging if serial port receives data   
+ {
+     Key = results.value;
+    switch(Key)
+     {
+       case IR_Auto:mode = 0;   
+       break;
+       case IR_Man:mode = 1;   
+       break;
+       default: 
+       break;      
+     }
+     irrecv.resume();
+}
 }
